@@ -34,7 +34,7 @@ class BotConfig:
         "be helpful, and keep a light conversational tone while referencing "
         "stored memories when relevant."
     )
-    llm_model: str = "openrouter/openai/gpt-4o-mini"
+    llm_model: str = "openai/gpt-4o-mini"
     max_context_messages: int = 12
 
     def __post_init__(self) -> None:
