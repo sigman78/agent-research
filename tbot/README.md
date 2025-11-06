@@ -29,13 +29,13 @@ A lightweight Python project showcasing an LLM-driven Telegram bot that role-pla
 
    ```bash
    export TELEGRAM_BOT_TOKEN="<telegram-token>"
-   export OPENROUTER_API_KEY="<openrouter-key>"
+   export API_KEY="<openrouter-api-key>"
    ```
 
 3. Run the bot:
 
    ```bash
-   python -m tbot.main
+   python -m tbot.main --api-key "$API_KEY"
    ```
 
 The bot stores its configuration in `~/.tbot-config.json` by default.
