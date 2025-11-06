@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 import random
-from telegram import Update
+from telegram import Message, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -21,7 +21,17 @@ from .logic import should_respond
 from .memory import MemoryManager
 
 
+def _get_message(update: Update) -> Message | None:
+    """Return the effective message for an update when available."""
+
+    return update.effective_message
+
+
 async def _reply_with_config(update: Update, config: BotConfig) -> None:
+    message = _get_message(update)
+    if message is None:
+        return
+
     text = (
         "<b>Persona bot configuration</b>\n"
         f"Persona: {config.persona}\n"
@@ -29,13 +39,14 @@ async def _reply_with_config(update: Update, config: BotConfig) -> None:
         f"Model: {config.llm_model}\n"
         f"Max context messages: {config.max_context_messages}\n"
     )
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+    await message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
 def _parse_argument(update: Update) -> str:
-    if not update.message or not update.message.text:
+    message = _get_message(update)
+    if not message or not message.text:
         return ""
-    parts = update.message.text.split(" ", 1)
+    parts = message.text.split(" ", 1)
     if len(parts) == 1:
         return ""
     return parts[1].strip()
@@ -60,47 +71,62 @@ def create_application(
 
     async def handle_persona(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         argument = _parse_argument(update)
+        message = _get_message(update)
+        if message is None:
+            return
         if not argument:
-            await update.message.reply_text("Usage: /persona <description>")
+            await message.reply_text("Usage: /persona <description>")
             return
         config_manager.set_field("persona", argument)
-        await update.message.reply_text("Persona updated.")
+        await message.reply_text("Persona updated.")
 
     async def handle_frequency(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         argument = _parse_argument(update)
+        message = _get_message(update)
+        if message is None:
+            return
         try:
             value = float(argument)
         except ValueError:
-            await update.message.reply_text("Usage: /frequency <0.0-1.0>")
+            await message.reply_text("Usage: /frequency <0.0-1.0>")
             return
         config_manager.set_field("response_frequency", value)
-        await update.message.reply_text(
+        await message.reply_text(
             f"Response frequency set to {value:.2f}."
         )
 
     async def handle_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         argument = _parse_argument(update)
+        message = _get_message(update)
+        if message is None:
+            return
         if not argument:
-            await update.message.reply_text("Usage: /prompt <system prompt>")
+            await message.reply_text("Usage: /prompt <system prompt>")
             return
         config_manager.set_field("system_prompt", argument)
-        await update.message.reply_text("System prompt updated.")
+        await message.reply_text("System prompt updated.")
 
     async def handle_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         argument = _parse_argument(update)
+        message = _get_message(update)
+        if message is None:
+            return
         if not argument:
-            await update.message.reply_text("Usage: /model <model name>")
+            await message.reply_text("Usage: /model <model name>")
             return
         config_manager.set_field("llm_model", argument)
-        await update.message.reply_text(f"Model set to {argument}.")
+        await message.reply_text(f"Model set to {argument}.")
 
     async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await _reply_with_config(update, config_manager.config)
 
     async def handle_memory(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         argument = _parse_argument(update)
+        message = _get_message(update)
+        if message is None or update.effective_chat is None:
+            return
         if not argument:
-            await update.message.reply_text(
+            await message.reply_text(
                 "Usage: /memory <add|clear|list> [text]"
             )
             return
@@ -110,26 +136,29 @@ def create_application(
         payload = parts[1].strip() if len(parts) > 1 else ""
         if action == "add" and payload:
             entry = memory_manager.add_memory(chat_id, payload)
-            await update.message.reply_text(
+            await message.reply_text(
                 f"Stored memory at {entry.created_at.isoformat()}"
             )
         elif action == "clear":
             memory_manager.clear_memories(chat_id)
-            await update.message.reply_text("Cleared memories for this chat.")
+            await message.reply_text("Cleared memories for this chat.")
         elif action == "list":
             memories = memory_manager.get_memories(chat_id)
             if not memories:
-                await update.message.reply_text("No memories stored yet.")
+                await message.reply_text("No memories stored yet.")
             else:
                 lines = [f"- {m.text} ({m.created_at:%Y-%m-%d})" for m in memories]
-                await update.message.reply_text("\n".join(lines))
+                await message.reply_text("\n".join(lines))
         else:
-            await update.message.reply_text(
+            await message.reply_text(
                 "Usage: /memory <add|clear|list> [text]"
             )
 
     async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await update.message.reply_text(
+        message = _get_message(update)
+        if message is None:
+            return
+        await message.reply_text(
             "Available commands:\n"
             "/persona <text> - set persona\n"
             "/frequency <0-1> - adjust reply probability\n"
@@ -140,10 +169,11 @@ def create_application(
         )
 
     async def maybe_reply(update: Update, context: CallbackContext) -> None:
-        if update.message is None or update.effective_chat is None:
+        message = _get_message(update)
+        if message is None or update.effective_chat is None:
             return
         chat_id = update.effective_chat.id
-        text = update.message.text or ""
+        text = message.text or ""
         if not text:
             return
 
@@ -155,8 +185,8 @@ def create_application(
         config = config_manager.config
         bot_user = context.bot if hasattr(context, "bot") else None
         replied_to_bot = False
-        if update.message.reply_to_message and bot_user:
-            replied_to = update.message.reply_to_message.from_user
+        if message.reply_to_message and bot_user:
+            replied_to = message.reply_to_message.from_user
             replied_to_bot = replied_to.id == bot_user.id if replied_to else False
 
         should_reply = should_respond(
@@ -176,7 +206,7 @@ def create_application(
             memories=memories,
             user_message=text,
         )
-        await update.message.reply_text(reply)
+        await message.reply_text(reply)
         memory_manager.append_history(chat_id, f"Bot: {reply}")
 
     application.add_handler(CommandHandler("persona", handle_persona))
