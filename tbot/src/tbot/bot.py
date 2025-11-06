@@ -44,6 +44,7 @@ def _parse_argument(update: Update) -> str:
 def create_application(
     token: str,
     *,
+    api_key: str | None = None,
     config_manager: ConfigManager | None = None,
     memory_manager: MemoryManager | None = None,
     llm_client: LLMClient | None = None,
@@ -52,7 +53,8 @@ def create_application(
 
     config_manager = config_manager or ConfigManager()
     memory_manager = memory_manager or MemoryManager()
-    llm_client = llm_client or LLMClient(api_key=os.getenv("OPENROUTER_API_KEY"))
+    resolved_api_key = api_key or os.getenv("API_KEY")
+    llm_client = llm_client or LLMClient(api_key=resolved_api_key)
 
     application = Application.builder().token(token).build()
 
@@ -191,9 +193,9 @@ def create_application(
     return application
 
 
-async def run_polling(token: str) -> None:
+async def run_polling(token: str, *, api_key: str | None = None) -> None:
     """Helper entry point for manual runs."""
-    application = create_application(token)
+    application = create_application(token, api_key=api_key)
     async with application:
         await application.start()
         await application.updater.start_polling()
