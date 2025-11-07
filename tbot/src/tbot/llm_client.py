@@ -101,7 +101,7 @@ class LLMClient:
         memory_lines = [f"- {entry.text}" for entry in memories]
         memory_blob = "\n".join(memory_lines) if memory_lines else "None"
 
-        messages: List[dict[str, str]] = [
+        messages: List[ChatCompletionMessageParam] = [
             {"role": "system", "content": system},
             {
                 "role": "system",
@@ -133,7 +133,7 @@ class LLMClient:
             try:
                 response = self._client.chat.completions.create(
                     model=config.llm_model,
-                    messages=cast(Iterable[ChatCompletionMessageParam], messages),
+                    messages=messages,
                     temperature=DEFAULT_TEMPERATURE,
                     max_tokens=DEFAULT_MAX_TOKENS,
                 )
@@ -198,7 +198,7 @@ class LLMClient:
             "Keep the summary concise (2-4 sentences)."
         )
 
-        summary_messages: List[dict[str, str]] = [
+        summary_messages: List[ChatCompletionMessageParam] = [
             {"role": "system", "content": system_prompt},
             {
                 "role": "user",
@@ -212,9 +212,7 @@ class LLMClient:
             try:
                 response = self._client.chat.completions.create(
                     model=model,
-                    messages=cast(
-                        Iterable[ChatCompletionMessageParam], summary_messages
-                    ),
+                    messages=summary_messages,
                     temperature=0.3,  # Lower temperature for more focused summaries
                     max_tokens=256,  # Shorter response for summaries
                 )
@@ -271,7 +269,7 @@ class LLMClient:
             f"Respond with ONLY the emoji or 'NONE', nothing else."
         )
 
-        reaction_messages: List[dict[str, str]] = [
+        reaction_messages: List[ChatCompletionMessageParam] = [
             {"role": "system", "content": system_prompt},
             {
                 "role": "user",
@@ -285,9 +283,7 @@ class LLMClient:
             try:
                 response = self._client.chat.completions.create(
                     model=model,
-                    messages=cast(
-                        Iterable[ChatCompletionMessageParam], reaction_messages
-                    ),
+                    messages=reaction_messages,
                     temperature=0.5,  # Lower temperature for more consistent reactions
                     max_tokens=10,  # Very short response
                 )
