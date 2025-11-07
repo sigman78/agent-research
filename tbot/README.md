@@ -6,6 +6,7 @@ A lightweight Python project showcasing an LLM-driven Telegram bot that role-pla
 
 - **Smart reply logic**: Always responds in private 1-on-1 chats, uses configurable frequency in groups
 - **Auto-summarization**: Automatically summarizes old conversations and stores them as memories when history grows
+- **Persistent storage**: Memories and chat history automatically saved to disk and restored on restart
 - Adjustable reply frequency, persona, system prompt, and model via Telegram commands.
 - Lightweight, file-backed configuration with built-in validation.
 - Per-chat memory and history tracking with automatic management.
@@ -70,6 +71,19 @@ The bot automatically manages conversation history per chat:
 
 This ensures the bot can maintain long-term context while keeping the conversation history manageable.
 
+### Data Persistence
+
+All chat data is automatically persisted to disk:
+
+- **Storage location**: `~/.tbot-data.json` (configurable)
+- **What's saved**: Memories, conversation history, and summarization counts for all chats
+- **Auto-save**: Changes are immediately saved to disk after each modification
+- **Auto-load**: Data is automatically loaded when the bot starts
+- **Atomic writes**: Uses temporary files to prevent data corruption
+- **Per-chat isolation**: Each chat's data is stored and restored independently
+
+The bot maintains continuity across restarts, remembering past conversations and accumulated memories.
+
 ## Telegram commands
 
 - `/persona <text>` – set the bot's persona description.
@@ -88,7 +102,7 @@ Run the automated test suite with:
 pytest
 ```
 
-The tests focus on configuration management, memory handling, reply decision logic, and auto-summarization.
+The tests focus on configuration management, memory handling, reply decision logic, auto-summarization, and data persistence.
 
 ## Configuration
 
