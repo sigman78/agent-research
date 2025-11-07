@@ -13,6 +13,7 @@ except Exception:  # pragma: no cover - fallback when package missing
     OpenAIError = Exception  # type: ignore
 
 from .config import BotConfig
+from .const import TG_REACTIONS as COMMON_REACTIONS
 from .memory import MemoryEntry
 
 logger = logging.getLogger(__name__)
@@ -21,20 +22,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_TEMPERATURE = 0.8
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-
-# Common Telegram emoji reactions
-COMMON_REACTIONS = [
-    "👍", "👎", "❤️", "🔥", "🥰", "👏", "😁", "🤔",
-    "🤯", "😱", "🤬", "😢", "🎉", "🤩", "🤮", "💩",
-    "🙏", "👌", "🕊", "🤡", "🥱", "🥴", "😍", "🐳",
-    "❤‍🔥", "🌚", "🌭", "💯", "🤣", "⚡", "🍌", "🏆",
-    "💔", "🤨", "😐", "🍓", "🍾", "💋", "🖕", "😈",
-    "😴", "😭", "🤓", "👻", "👨‍💻", "👀", "🎃", "🙈",
-    "😇", "😨", "🤝", "✍", "🤗", "🫡", "🎅", "🎄",
-    "☃", "💅", "🤪", "🗿", "🆒", "💘", "🙉", "🦄",
-    "😘", "💊", "🙊", "😎", "👾", "🤷‍♂", "🤷", "🤷‍♀",
-    "😡"
-]
 
 
 class LLMClient:
@@ -259,7 +246,7 @@ class LLMClient:
             return None
 
         # Create a specialized prompt for reaction selection
-        reactions_list = ", ".join(COMMON_REACTIONS[:20])  # Use top 20 most common
+        reactions_list = ",".join(COMMON_REACTIONS[:20])  # Use top 20 most common
         system_prompt = (
             f"You are a helpful assistant that suggests emoji reactions. "
             f"The bot's persona is: {persona}. "
