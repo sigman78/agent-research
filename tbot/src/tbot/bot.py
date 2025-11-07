@@ -390,7 +390,10 @@ def create_application(
                     clean_reply = clean_reply[5:]  # Remove "Bot: " prefix
 
                 # Send the clean reply
-                await message.reply_text(_truncate_text(clean_reply))
+                await message.reply_text(
+                    _truncate_text(clean_reply),
+                    parse_mode=ParseMode.MARKDOWN,
+                )
 
                 # Store full reply in history with prefix (for proper history processing)
                 memory_manager.append_history(chat_id, f"Bot: {clean_reply}")
