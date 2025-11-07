@@ -105,13 +105,23 @@ class LLMClient:
             {"role": "system", "content": system},
             {
                 "role": "system",
-                "content": (
-                    "Relevant persona memories (optional):\n" f"{memory_blob}"
-                ),
+                "content": (f"Relevant persona memories (optional):\n{memory_blob}"),
             },
         ]
         for item in history:
-            messages.append({"role": "user", "content": item})
+            if item.startswith("Bot: "):
+                # Process bot messages - strip the "Bot:" prefix
+                clean_content = item[5:]  # Remove "Bot: " prefix
+                messages.append({"role": "assistant", "content": clean_content})
+            else:
+                # Process user messages - strip any user prefix like "User: "
+                content = item
+                if ": " in content:
+                    parts = content.split(": ", 1)
+                    if len(parts) > 1:
+                        content = parts[1]  # Take only the message part
+                messages.append({"role": "user", "content": content})
+
         messages.append({"role": "user", "content": user_message})
 
         logger.debug(

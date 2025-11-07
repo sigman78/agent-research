@@ -6,10 +6,9 @@ import asyncio
 import logging
 import os
 import random
-from typing import Optional
 
 from telegram import Message, Update
-from telegram.constants import ParseMode
+from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
     CallbackContext,
@@ -138,8 +137,11 @@ async def _maybe_auto_summarize(
             model=config.llm_model,
         )
 
-        # Add summary to memories
-        memory_manager.add_memory(chat_id, f"[Auto-summary]: {summary}")
+        # Add summary to memories - ensure no unexpected formatting issues
+        clean_summary = summary
+        if clean_summary.startswith("Bot: "):
+            clean_summary = clean_summary[5:]  # Remove any unexpected "Bot:" prefix
+        memory_manager.add_memory(chat_id, f"[Auto-summary]: {clean_summary}")
 
         # Clear the summarized messages from history
         memory_manager.clear_summarized_messages(chat_id, len(messages_to_summarize))
@@ -276,9 +278,13 @@ def create_application(
         if not text:
             return
 
+        # Ensure consistent formatting for user messages in history
+        user_name = "User"
+        if update.effective_user and update.effective_user.first_name:
+            user_name = update.effective_user.first_name
         memory_manager.append_history(
             chat_id,
-            f"{update.effective_user.first_name or 'User'}: {text}",
+            f"{user_name}: {text}",
         )
 
         config = config_manager.config
@@ -345,6 +351,8 @@ def create_application(
         if not should_reply:
             return
 
+        # Notify - something brewing
+        context.bot.sendChatAction(chat_id=chat_id, action=ChatAction.TYPING)
         history = memory_manager.get_history(chat_id, config.max_context_messages)
         memories = memory_manager.get_memories(chat_id)
 
@@ -355,9 +363,6 @@ def create_application(
                 memories=memories,
                 user_message=text,
             )
-            # Truncate reply if needed
-            reply_to_send = _truncate_text(reply)
-
             # Check if we can send messages in this chat (for groups)
             can_send_messages = True
             if update.effective_chat.type in ["group", "supergroup"]:
@@ -379,9 +384,16 @@ def create_application(
                     )
 
             if can_send_messages:
-                await message.reply_text(reply_to_send)
-                # Store full reply in history (not truncated)
-                memory_manager.append_history(chat_id, f"Bot: {reply}")
+                # Make sure the response doesn't contain the "Bot:" prefix
+                clean_reply = reply
+                if clean_reply.startswith("Bot: "):
+                    clean_reply = clean_reply[5:]  # Remove "Bot: " prefix
+
+                # Send the clean reply
+                await message.reply_text(_truncate_text(clean_reply))
+
+                # Store full reply in history with prefix (for proper history processing)
+                memory_manager.append_history(chat_id, f"Bot: {clean_reply}")
                 logger.info(f"Successfully replied to message in chat {chat_id}")
             else:
                 logger.warning(
