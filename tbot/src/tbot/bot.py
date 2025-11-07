@@ -352,7 +352,7 @@ def create_application(
             return
 
         # Notify - something brewing
-        context.bot.sendChatAction(chat_id=chat_id, action=ChatAction.TYPING)
+        await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
         history = memory_manager.get_history(chat_id, config.max_context_messages)
         memories = memory_manager.get_memories(chat_id)
 
