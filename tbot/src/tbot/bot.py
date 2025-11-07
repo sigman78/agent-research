@@ -23,6 +23,9 @@ from .memory import MemoryManager
 
 logger = logging.getLogger(__name__)
 
+# Telegram message length limit
+MAX_MESSAGE_LENGTH = 4096
+
 
 def _get_message(update: Update) -> Message | None:
     """Return the effective message for an update when available."""
@@ -30,18 +33,45 @@ def _get_message(update: Update) -> Message | None:
     return update.effective_message
 
 
+def _truncate_text(text: str, max_length: int = MAX_MESSAGE_LENGTH) -> str:
+    """Truncate text to fit Telegram's message length limit.
+
+    Args:
+        text: Text to truncate
+        max_length: Maximum length (default: 4096 for Telegram)
+
+    Returns:
+        Truncated text with ellipsis if needed
+    """
+    if len(text) <= max_length:
+        return text
+
+    # Leave room for truncation indicator
+    truncate_msg = "\n\n... [Message truncated]"
+    max_content = max_length - len(truncate_msg)
+    return text[:max_content] + truncate_msg
+
+
 async def _reply_with_config(update: Update, config: BotConfig) -> None:
     message = _get_message(update)
     if message is None:
         return
 
+    # Truncate persona if it's too long
+    persona_display = config.persona
+    if len(persona_display) > 500:
+        persona_display = persona_display[:500] + "..."
+
     text = (
         "<b>Persona bot configuration</b>\n"
-        f"Persona: {config.persona}\n"
+        f"Persona: {persona_display}\n"
         f"Response frequency: {config.response_frequency:.2f}\n"
         f"Model: {config.llm_model}\n"
         f"Max context messages: {config.max_context_messages}\n"
+        f"Auto-summarization: {'enabled' if config.auto_summarize_enabled else 'disabled'}\n"
+        f"Summarize threshold: {config.summarize_threshold}\n"
     )
+    text = _truncate_text(text)
     await message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
@@ -218,7 +248,9 @@ def create_application(
                 await message.reply_text("No memories stored yet.")
             else:
                 lines = [f"- {m.text} ({m.created_at:%Y-%m-%d})" for m in memories]
-                await message.reply_text("\n".join(lines))
+                text = "\n".join(lines)
+                text = _truncate_text(text)
+                await message.reply_text(text)
         else:
             await message.reply_text(
                 "Usage: /memory <add|clear|list> [text]"
@@ -282,7 +314,10 @@ def create_application(
                 memories=memories,
                 user_message=text,
             )
-            await message.reply_text(reply)
+            # Truncate reply if needed
+            reply_to_send = _truncate_text(reply)
+            await message.reply_text(reply_to_send)
+            # Store full reply in history (not truncated)
             memory_manager.append_history(chat_id, f"Bot: {reply}")
             logger.info(f"Successfully replied to message in chat {chat_id}")
 
@@ -301,6 +336,19 @@ def create_application(
             )
             await message.reply_text(error_message)
 
+    async def error_handler(update: object, context: CallbackContext) -> None:
+        """Handle errors in the telegram bot."""
+        logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
+
+        # Try to notify the user if possible
+        if isinstance(update, Update) and update.effective_message:
+            try:
+                error_text = "Sorry, an error occurred while processing your request."
+                await update.effective_message.reply_text(error_text)
+            except Exception:
+                # If we can't send the error message, just log it
+                pass
+
     application.add_handler(CommandHandler("persona", handle_persona))
     application.add_handler(CommandHandler("frequency", handle_frequency))
     application.add_handler(CommandHandler("prompt", handle_prompt))
@@ -311,6 +359,9 @@ def create_application(
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, maybe_reply)
     )
+
+    # Add error handler
+    application.add_error_handler(error_handler)
 
     return application
 
