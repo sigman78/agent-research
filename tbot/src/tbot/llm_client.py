@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, cast
 
 try:  # pragma: no cover - imported lazily for tests
-    from openai import OpenAI
-    from openai import OpenAIError
+    from openai import OpenAI, OpenAIError
+    from openai.types.chat import ChatCompletionMessageParam
 except Exception:  # pragma: no cover - fallback when package missing
     OpenAI = None  # type: ignore
     OpenAIError = Exception  # type: ignore
@@ -133,7 +133,7 @@ class LLMClient:
             try:
                 response = self._client.chat.completions.create(
                     model=config.llm_model,
-                    messages=messages,
+                    messages=cast(Iterable[ChatCompletionMessageParam], messages),
                     temperature=DEFAULT_TEMPERATURE,
                     max_tokens=DEFAULT_MAX_TOKENS,
                 )
@@ -212,7 +212,9 @@ class LLMClient:
             try:
                 response = self._client.chat.completions.create(
                     model=model,
-                    messages=summary_messages,
+                    messages=cast(
+                        Iterable[ChatCompletionMessageParam], summary_messages
+                    ),
                     temperature=0.3,  # Lower temperature for more focused summaries
                     max_tokens=256,  # Shorter response for summaries
                 )
@@ -283,7 +285,9 @@ class LLMClient:
             try:
                 response = self._client.chat.completions.create(
                     model=model,
-                    messages=reaction_messages,
+                    messages=cast(
+                        Iterable[ChatCompletionMessageParam], reaction_messages
+                    ),
                     temperature=0.5,  # Lower temperature for more consistent reactions
                     max_tokens=10,  # Very short response
                 )
