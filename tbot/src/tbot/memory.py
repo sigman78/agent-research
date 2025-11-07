@@ -197,7 +197,7 @@ class MemoryManager:
 
             # Write atomically using a temp file
             temp_path = self._storage_path.with_suffix(".tmp")
-            temp_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            temp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
             temp_path.replace(self._storage_path)
 
             self._dirty = False

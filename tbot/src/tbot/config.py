@@ -102,7 +102,7 @@ class BotConfig:
         }
 
     def model_dump_json(self, indent: int | None = None) -> str:
-        return json.dumps(self.model_dump(), indent=indent)
+        return json.dumps(self.model_dump(), ensure_ascii=False, indent=indent)
 
     def model_copy(self, *, update: Dict[str, Any] | None = None, validate: bool = True) -> "BotConfig":
         data = self.model_dump()
