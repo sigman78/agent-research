@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Main entry point for the bot application."""
-    from .bot import run_polling
+    from .bot import run, run_polling
 
     args = parse_args()
     setup_logging(verbose=args.verbose)
@@ -66,7 +66,8 @@ def main() -> None:
         raise SystemExit("API key is required. Use --api-key or API_KEY.")
 
     try:
-        asyncio.run(run_polling(args.token, api_key=args.api_key))
+        # asyncio.run(run_polling(args.token, api_key=args.api_key))
+        run(args.token, api_key=args.api_key)
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:

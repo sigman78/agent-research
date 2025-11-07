@@ -523,17 +523,25 @@ def create_application(
     return application
 
 
+def run(token: str, *, api_key: str | None = None) -> None:
+    """Helper entry point for manual runs."""
+    application = create_application(token, api_key=api_key)
+    if application.updater is None:
+        raise RuntimeError("Application was created without an updater")
+    application.run_polling()
+
+
 async def run_polling(token: str, *, api_key: str | None = None) -> None:
     """Helper entry point for manual runs."""
     application = create_application(token, api_key=api_key)
+    if application.updater is None:
+        raise RuntimeError("Application was created without an updater")
+
     async with application:
         await application.start()
-        # await application.updater.start_polling()
+        await application.updater.start_polling()
         try:
-            while True:
-                await asyncio.sleep(3600)
-        except asyncio.CancelledError:
-            pass
+            await asyncio.Event().wait()
         finally:
-            # await application.updater.stop()
+            await application.updater.stop()
             await application.stop()
