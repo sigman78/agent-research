@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import random
 from telegram import Message, Update
@@ -19,6 +20,8 @@ from .config import BotConfig, ConfigManager
 from .llm_client import LLMClient
 from .logic import should_respond
 from .memory import MemoryManager
+
+logger = logging.getLogger(__name__)
 
 
 def _get_message(update: Update) -> Message | None:
@@ -189,10 +192,14 @@ def create_application(
             replied_to = message.reply_to_message.from_user
             replied_to_bot = replied_to.id == bot_user.id if replied_to else False
 
+        # Detect if this is a private 1-on-1 chat
+        is_private_chat = update.effective_chat.type == "private"
+
         should_reply = should_respond(
             random_value=random.random(),
             response_frequency=config.response_frequency,
             replied_to_bot=replied_to_bot,
+            is_private_chat=is_private_chat,
         )
 
         if not should_reply:
@@ -200,14 +207,24 @@ def create_application(
 
         history = memory_manager.get_history(chat_id, config.max_context_messages)
         memories = memory_manager.get_memories(chat_id)
-        reply = await llm_client.generate_reply(
-            config=config,
-            history=history,
-            memories=memories,
-            user_message=text,
-        )
-        await message.reply_text(reply)
-        memory_manager.append_history(chat_id, f"Bot: {reply}")
+
+        try:
+            reply = await llm_client.generate_reply(
+                config=config,
+                history=history,
+                memories=memories,
+                user_message=text,
+            )
+            await message.reply_text(reply)
+            memory_manager.append_history(chat_id, f"Bot: {reply}")
+            logger.info(f"Successfully replied to message in chat {chat_id}")
+        except Exception as e:
+            logger.error(f"Failed to generate reply for chat {chat_id}: {e}")
+            error_message = (
+                "Sorry, I encountered an error generating a response. "
+                "Please try again later."
+            )
+            await message.reply_text(error_message)
 
     application.add_handler(CommandHandler("persona", handle_persona))
     application.add_handler(CommandHandler("frequency", handle_frequency))

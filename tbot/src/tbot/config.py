@@ -55,6 +55,11 @@ class BotConfig:
         if not self.llm_model:
             raise ValueError("llm_model must be a non-empty string.")
 
+        # Auto-fix common model name mistakes
+        if self.llm_model.startswith("openrouter/"):
+            # Remove the openrouter/ prefix - OpenRouter API expects just provider/model
+            self.llm_model = self.llm_model.replace("openrouter/", "", 1)
+
     def model_dump(self) -> Dict[str, Any]:
         return {
             "response_frequency": self.response_frequency,

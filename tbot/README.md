@@ -4,11 +4,13 @@ A lightweight Python project showcasing an LLM-driven Telegram bot that role-pla
 
 ## Features
 
+- **Smart reply logic**: Always responds in private 1-on-1 chats, uses configurable frequency in groups
 - Adjustable reply frequency, persona, system prompt, and model via Telegram commands.
 - Lightweight, file-backed configuration with built-in validation.
 - In-memory persona memories and chat history with easy management commands.
 - Extensible LLM wrapper for OpenRouter-compatible models.
 - Async implementation powered by `python-telegram-bot` v20.
+- Comprehensive error handling and logging for debugging
 
 ## Setup
 
@@ -38,7 +40,19 @@ A lightweight Python project showcasing an LLM-driven Telegram bot that role-pla
    python -m tbot.main --api-key "$API_KEY"
    ```
 
+   Or with verbose logging for debugging:
+
+   ```bash
+   python -m tbot.main --api-key "$API_KEY" --verbose
+   ```
+
 The bot stores its configuration in `~/.tbot-config.json` by default.
+
+## Behavior
+
+- **Private chats**: The bot always responds to messages in private 1-on-1 conversations
+- **Group chats**: The bot uses the configured `response_frequency` to decide whether to respond
+- **Direct replies**: The bot always responds when you reply to one of its messages (in any chat type)
 
 ## Telegram commands
 
