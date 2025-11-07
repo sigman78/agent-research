@@ -42,6 +42,10 @@ class BotConfig:
     summarize_threshold: int = 18
     summarize_batch_size: int = 10
 
+    # Reaction settings
+    reactions_enabled: bool = True
+    reaction_frequency: float = 0.3
+
     def __post_init__(self) -> None:
         self.persona = self.persona.strip()
         self.system_prompt = self.system_prompt.strip()
@@ -69,6 +73,12 @@ class BotConfig:
             maximum=50,
             field_name="summarize_batch_size",
         )
+        self.reaction_frequency = _clamp(
+            float(self.reaction_frequency),
+            minimum=0.0,
+            maximum=1.0,
+            field_name="reaction_frequency",
+        )
         if not self.llm_model:
             raise ValueError("llm_model must be a non-empty string.")
 
@@ -87,6 +97,8 @@ class BotConfig:
             "auto_summarize_enabled": self.auto_summarize_enabled,
             "summarize_threshold": self.summarize_threshold,
             "summarize_batch_size": self.summarize_batch_size,
+            "reactions_enabled": self.reactions_enabled,
+            "reaction_frequency": self.reaction_frequency,
         }
 
     def model_dump_json(self, indent: int | None = None) -> str:

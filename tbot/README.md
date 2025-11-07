@@ -5,6 +5,7 @@ A lightweight Python project showcasing an LLM-driven Telegram bot that role-pla
 ## Features
 
 - **Smart reply logic**: Always responds in private 1-on-1 chats, uses configurable frequency in groups
+- **Emoji reactions**: LLM-powered emoji reactions to messages based on persona and context
 - **Auto-summarization**: Automatically summarizes old conversations and stores them as memories when history grows
 - **Persistent storage**: Memories and chat history automatically saved to disk and restored on restart
 - Adjustable reply frequency, persona, system prompt, and model via Telegram commands.
@@ -84,6 +85,18 @@ All chat data is automatically persisted to disk:
 
 The bot maintains continuity across restarts, remembering past conversations and accumulated memories.
 
+### Emoji Reactions
+
+The bot can react to user messages with contextually appropriate emoji:
+
+- **LLM-powered selection**: The bot uses the LLM to suggest reactions based on message content and persona
+- **Configurable frequency**: Control how often reactions are added with `reaction_frequency` (default: 0.3 or 30%)
+- **Smart suggestions**: The LLM chooses from 75+ common Telegram reactions or suggests no reaction when appropriate
+- **Non-critical**: Reaction errors don't interrupt conversations - failures are logged but don't affect replies
+- **Persona-aware**: Reactions match the bot's configured persona (e.g., a cheerful bot might use more positive emojis)
+
+Enable/disable reactions with the `reactions_enabled` config setting, or adjust how often they appear with `reaction_frequency`.
+
 ## Telegram commands
 
 - `/persona <text>` – set the bot's persona description.
@@ -118,6 +131,8 @@ The bot stores its configuration in `~/.tbot-config.json`. Here are the availabl
 | `auto_summarize_enabled` | true | Enable/disable automatic summarization |
 | `summarize_threshold` | 18 | Number of messages that triggers summarization |
 | `summarize_batch_size` | 10 | Number of oldest messages to summarize at once |
+| `reactions_enabled` | true | Enable/disable emoji reactions to messages |
+| `reaction_frequency` | 0.3 | Probability (0.0-1.0) of adding a reaction to user messages |
 
 You can edit the config file directly or use Telegram commands to update some settings.
 

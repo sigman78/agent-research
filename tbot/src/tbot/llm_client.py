@@ -22,6 +22,20 @@ DEFAULT_TEMPERATURE = 0.8
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
+# Common Telegram emoji reactions
+COMMON_REACTIONS = [
+    "👍", "👎", "❤️", "🔥", "🥰", "👏", "😁", "🤔",
+    "🤯", "😱", "🤬", "😢", "🎉", "🤩", "🤮", "💩",
+    "🙏", "👌", "🕊", "🤡", "🥱", "🥴", "😍", "🐳",
+    "❤‍🔥", "🌚", "🌭", "💯", "🤣", "⚡", "🍌", "🏆",
+    "💔", "🤨", "😐", "🍓", "🍾", "💋", "🖕", "😈",
+    "😴", "😭", "🤓", "👻", "👨‍💻", "👀", "🎃", "🙈",
+    "😇", "😨", "🤝", "✍", "🤗", "🫡", "🎅", "🎄",
+    "☃", "💅", "🤪", "🗿", "🆒", "💘", "🙉", "🦄",
+    "😘", "💊", "🙊", "😎", "👾", "🤷‍♂", "🤷", "🤷‍♀",
+    "😡"
+]
+
 
 class LLMClient:
     """Wrapper around the OpenAI client to talk to OpenRouter."""
@@ -211,4 +225,82 @@ class LLMClient:
         except Exception as e:
             logger.error(f"Failed to generate summary: {e}")
             raise
+
+    async def suggest_reaction(
+        self,
+        message: str,
+        persona: str,
+        model: str,
+    ) -> str | None:
+        """Suggest an appropriate emoji reaction for a message.
+
+        Args:
+            message: The user's message to react to
+            persona: The bot's persona for context
+            model: LLM model to use
+
+        Returns:
+            An emoji reaction string, or None if no reaction is needed
+
+        Raises:
+            OpenAIError: If the API call fails
+        """
+        if not message or not message.strip():
+            return None
+
+        # Create a specialized prompt for reaction selection
+        reactions_list = ", ".join(COMMON_REACTIONS[:20])  # Use top 20 most common
+        system_prompt = (
+            f"You are a helpful assistant that suggests emoji reactions. "
+            f"The bot's persona is: {persona}. "
+            f"Based on the message, suggest ONE emoji reaction that would be appropriate, "
+            f"or respond with 'NONE' if no reaction is needed. "
+            f"Available reactions: {reactions_list}. "
+            f"Respond with ONLY the emoji or 'NONE', nothing else."
+        )
+
+        reaction_messages: List[dict[str, str]] = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": f"Message: {message}\n\nSuggest reaction:",
+            },
+        ]
+
+        logger.debug(f"Requesting reaction suggestion for message: {message[:50]}...")
+
+        def _call() -> str | None:
+            try:
+                response = self._client.chat.completions.create(
+                    model=model,
+                    messages=reaction_messages,
+                    temperature=0.5,  # Lower temperature for more consistent reactions
+                    max_tokens=10,  # Very short response
+                )
+                content = response.choices[0].message.content
+                if content is None:
+                    return None
+                content = content.strip()
+
+                # Check if LLM suggested no reaction
+                if content.upper() == "NONE" or not content:
+                    return None
+
+                # Return the suggested emoji
+                return content
+            except OpenAIError as e:
+                logger.error(f"API error while suggesting reaction: {e}")
+                return None  # Fail gracefully for reactions
+            except Exception as e:
+                logger.error(f"Error suggesting reaction: {e}")
+                return None
+
+        try:
+            reaction = await asyncio.to_thread(_call)
+            if reaction:
+                logger.debug(f"Suggested reaction: {reaction}")
+            return reaction
+        except Exception as e:
+            logger.error(f"Failed to suggest reaction: {e}")
+            return None  # Fail gracefully
 

@@ -294,6 +294,21 @@ def create_application(
         # Detect if this is a private 1-on-1 chat
         is_private_chat = update.effective_chat.type == "private"
 
+        # Try to add a reaction if enabled
+        if config.reactions_enabled and random.random() <= config.reaction_frequency:
+            try:
+                reaction = await llm_client.suggest_reaction(
+                    message=text,
+                    persona=config.persona,
+                    model=config.llm_model,
+                )
+                if reaction:
+                    await message.set_reaction(reaction)
+                    logger.debug(f"Set reaction {reaction} on message in chat {chat_id}")
+            except Exception as e:
+                # Reactions are non-critical, just log and continue
+                logger.debug(f"Failed to set reaction in chat {chat_id}: {e}")
+
         should_reply = should_respond(
             random_value=random.random(),
             response_frequency=config.response_frequency,
