@@ -1,10 +1,13 @@
 """Telegram bot wiring for the persona simulator."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
 import random
+from typing import Optional
+
 from telegram import Message, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -136,9 +139,7 @@ async def _maybe_auto_summarize(
         )
 
         # Add summary to memories
-        memory_manager.add_memory(
-            chat_id, f"[Auto-summary]: {summary}"
-        )
+        memory_manager.add_memory(chat_id, f"[Auto-summary]: {summary}")
 
         # Clear the summarized messages from history
         memory_manager.clear_summarized_messages(chat_id, len(messages_to_summarize))
@@ -169,7 +170,9 @@ def create_application(
 
     application = Application.builder().token(token).build()
 
-    async def handle_persona(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def handle_persona(
+        update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         argument = _parse_argument(update)
         message = _get_message(update)
         if message is None:
@@ -180,7 +183,9 @@ def create_application(
         config_manager.set_field("persona", argument)
         await message.reply_text("Persona updated.")
 
-    async def handle_frequency(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def handle_frequency(
+        update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         argument = _parse_argument(update)
         message = _get_message(update)
         if message is None:
@@ -191,9 +196,7 @@ def create_application(
             await message.reply_text("Usage: /frequency <0.0-1.0>")
             return
         config_manager.set_field("response_frequency", value)
-        await message.reply_text(
-            f"Response frequency set to {value:.2f}."
-        )
+        await message.reply_text(f"Response frequency set to {value:.2f}.")
 
     async def handle_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         argument = _parse_argument(update)
@@ -226,9 +229,7 @@ def create_application(
         if message is None or update.effective_chat is None:
             return
         if not argument:
-            await message.reply_text(
-                "Usage: /memory <add|clear|list> [text]"
-            )
+            await message.reply_text("Usage: /memory <add|clear|list> [text]")
             return
         chat_id = update.effective_chat.id
         parts = argument.split(" ", 1)
@@ -236,9 +237,7 @@ def create_application(
         payload = parts[1].strip() if len(parts) > 1 else ""
         if action == "add" and payload:
             entry = memory_manager.add_memory(chat_id, payload)
-            await message.reply_text(
-                f"Stored memory at {entry.created_at.isoformat()}"
-            )
+            await message.reply_text(f"Stored memory at {entry.created_at.isoformat()}")
         elif action == "clear":
             memory_manager.clear_memories(chat_id)
             await message.reply_text("Cleared memories for this chat.")
@@ -252,9 +251,7 @@ def create_application(
                 text = _truncate_text(text)
                 await message.reply_text(text)
         else:
-            await message.reply_text(
-                "Usage: /memory <add|clear|list> [text]"
-            )
+            await message.reply_text("Usage: /memory <add|clear|list> [text]")
 
     async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message = _get_message(update)
@@ -297,14 +294,43 @@ def create_application(
         # Try to add a reaction if enabled
         if config.reactions_enabled and random.random() <= config.reaction_frequency:
             try:
-                reaction = await llm_client.suggest_reaction(
-                    message=text,
-                    persona=config.persona,
-                    model=config.llm_model,
-                )
-                if reaction:
-                    await message.set_reaction(reaction)
-                    logger.debug(f"Set reaction {reaction} on message in chat {chat_id}")
+                # Check if we're in a group chat and have necessary permissions
+                can_set_reactions = True
+                if update.effective_chat.type in ["group", "supergroup"]:
+                    try:
+                        bot_member = await context.bot.get_chat_member(
+                            chat_id, context.bot.id
+                        )
+                        # Different Telegram versions have different permission structures
+                        # Try to be as permissive as possible to avoid errors
+                        if (
+                            hasattr(bot_member, "can_send_messages")
+                            and not bot_member.can_send_messages
+                        ) or (
+                            hasattr(bot_member, "status")
+                            and bot_member.status not in ["administrator", "creator"]
+                        ):
+                            can_set_reactions = False
+                            logger.debug(
+                                f"Bot lacks permissions to set reactions in chat {chat_id}"
+                            )
+                    except Exception as perm_error:
+                        logger.debug(
+                            f"Failed to check permissions in chat {chat_id}: {perm_error}"
+                        )
+                        can_set_reactions = False
+
+                if can_set_reactions:
+                    reaction = await llm_client.suggest_reaction(
+                        message=text,
+                        persona=config.persona,
+                        model=config.llm_model,
+                    )
+                    if reaction:
+                        await message.set_reaction(reaction)
+                        logger.debug(
+                            f"Set reaction {reaction} on message in chat {chat_id}"
+                        )
             except Exception as e:
                 # Reactions are non-critical, just log and continue
                 logger.debug(f"Failed to set reaction in chat {chat_id}: {e}")
@@ -331,10 +357,36 @@ def create_application(
             )
             # Truncate reply if needed
             reply_to_send = _truncate_text(reply)
-            await message.reply_text(reply_to_send)
-            # Store full reply in history (not truncated)
-            memory_manager.append_history(chat_id, f"Bot: {reply}")
-            logger.info(f"Successfully replied to message in chat {chat_id}")
+
+            # Check if we can send messages in this chat (for groups)
+            can_send_messages = True
+            if update.effective_chat.type in ["group", "supergroup"]:
+                try:
+                    bot_member = await context.bot.get_chat_member(
+                        chat_id, context.bot.id
+                    )
+                    if (
+                        hasattr(bot_member, "can_send_messages")
+                        and not bot_member.can_send_messages
+                    ):
+                        can_send_messages = False
+                        logger.warning(
+                            f"Bot doesn't have permission to send messages in chat {chat_id}"
+                        )
+                except Exception as perm_error:
+                    logger.debug(
+                        f"Failed to check send permissions in chat {chat_id}: {perm_error}"
+                    )
+
+            if can_send_messages:
+                await message.reply_text(reply_to_send)
+                # Store full reply in history (not truncated)
+                memory_manager.append_history(chat_id, f"Bot: {reply}")
+                logger.info(f"Successfully replied to message in chat {chat_id}")
+            else:
+                logger.warning(
+                    f"Skipped sending reply in chat {chat_id} due to insufficient permissions"
+                )
 
             # Check if auto-summarization should be triggered
             await _maybe_auto_summarize(
@@ -353,16 +405,76 @@ def create_application(
 
     async def error_handler(update: object, context: CallbackContext) -> None:
         """Handle errors in the telegram bot."""
-        logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
+        # Get detailed error information
+        error = context.error
+        error_str = str(error)
 
-        # Try to notify the user if possible
+        # More detailed logging for common Telegram API errors
+        if "Bad Request" in error_str:
+            if "Not enough rights" in error_str or "permission" in error_str.lower():
+                logger.error(
+                    f"Permission error: {error_str}. Bot likely lacks necessary permissions in the chat."
+                )
+            elif "bot was blocked" in error_str.lower():
+                logger.error(f"Bot was blocked by the user: {error_str}")
+            elif "Chat not found" in error_str:
+                logger.error(f"Chat not found error: {error_str}")
+            elif "message is not modified" in error_str.lower():
+                logger.debug(f"Harmless error - message not modified: {error_str}")
+                return  # Skip user notification for this error
+            else:
+                logger.error(f"Telegram API error: {error_str}")
+        else:
+            logger.error(f"Update {update} caused error {error}", exc_info=error)
+
+        # Try to notify the user if possible and appropriate
         if isinstance(update, Update) and update.effective_message:
             try:
-                error_text = "Sorry, an error occurred while processing your request."
-                await update.effective_message.reply_text(error_text)
-            except Exception:
-                # If we can't send the error message, just log it
-                pass
+                # Check if we can reply in this chat before attempting
+                can_reply = True
+                if update.effective_chat and update.effective_chat.type in [
+                    "group",
+                    "supergroup",
+                ]:
+                    try:
+                        bot_member = await context.bot.get_chat_member(
+                            update.effective_chat.id, context.bot.id
+                        )
+                        if (
+                            hasattr(bot_member, "can_send_messages")
+                            and not bot_member.can_send_messages
+                        ):
+                            can_reply = False
+                    except Exception:
+                        can_reply = False
+
+                if can_reply:
+                    error_text = (
+                        "Sorry, an error occurred while processing your request."
+                    )
+                    await update.effective_message.reply_text(error_text)
+            except Exception as notify_error:
+                logger.debug(f"Failed to send error notification: {notify_error}")
+
+    # Log bot info on startup to help with troubleshooting
+    async def log_bot_info(application: Application) -> None:
+        """Log information about the bot on startup."""
+        try:
+            bot = application.bot
+            bot_info = await bot.get_me()
+            logger.info(f"Bot initialized: @{bot_info.username} (ID: {bot_info.id})")
+            logger.info(f"Bot name: {bot_info.first_name}")
+
+            # Log warning about group privacy mode
+            logger.info(
+                "IMPORTANT: To work properly in groups, this bot should have Group Privacy Mode disabled "
+                "in BotFather settings (/mybots → Select bot → Bot Settings → Group Privacy)"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log bot information: {e}")
+
+    # Register the startup info logger
+    application.post_init = log_bot_info
 
     application.add_handler(CommandHandler("persona", handle_persona))
     application.add_handler(CommandHandler("frequency", handle_frequency))
@@ -395,4 +507,3 @@ async def run_polling(token: str, *, api_key: str | None = None) -> None:
         finally:
             await application.updater.stop()
             await application.stop()
-
