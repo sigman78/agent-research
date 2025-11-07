@@ -5,9 +5,10 @@ A lightweight Python project showcasing an LLM-driven Telegram bot that role-pla
 ## Features
 
 - **Smart reply logic**: Always responds in private 1-on-1 chats, uses configurable frequency in groups
+- **Auto-summarization**: Automatically summarizes old conversations and stores them as memories when history grows
 - Adjustable reply frequency, persona, system prompt, and model via Telegram commands.
 - Lightweight, file-backed configuration with built-in validation.
-- In-memory persona memories and chat history with easy management commands.
+- Per-chat memory and history tracking with automatic management.
 - Extensible LLM wrapper for OpenRouter-compatible models.
 - Async implementation powered by `python-telegram-bot` v20.
 - Comprehensive error handling and logging for debugging
@@ -54,6 +55,21 @@ The bot stores its configuration in `~/.tbot-config.json` by default.
 - **Group chats**: The bot uses the configured `response_frequency` to decide whether to respond
 - **Direct replies**: The bot always responds when you reply to one of its messages (in any chat type)
 
+### Auto-summarization
+
+The bot automatically manages conversation history per chat:
+
+- **History tracking**: Each chat maintains its own separate conversation history
+- **Automatic summarization**: When history reaches the threshold (default: 18 messages), the bot:
+  1. Takes the oldest messages (default: 10 messages)
+  2. Uses the LLM to generate a concise summary
+  3. Stores the summary as a memory
+  4. Removes the summarized messages from history to save space
+- **Memory integration**: Summaries are automatically included in context for future conversations
+- **Configuration**: Adjust `summarize_threshold` and `summarize_batch_size` in config, or disable with `auto_summarize_enabled: false`
+
+This ensures the bot can maintain long-term context while keeping the conversation history manageable.
+
 ## Telegram commands
 
 - `/persona <text>` – set the bot's persona description.
@@ -72,5 +88,22 @@ Run the automated test suite with:
 pytest
 ```
 
-The tests focus on configuration management, memory handling, and reply decision logic.
+The tests focus on configuration management, memory handling, reply decision logic, and auto-summarization.
+
+## Configuration
+
+The bot stores its configuration in `~/.tbot-config.json`. Here are the available settings:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `response_frequency` | 0.4 | Probability (0.0-1.0) of responding in group chats |
+| `persona` | "An affable research assistant..." | The bot's persona description |
+| `system_prompt` | "You are role-playing..." | System prompt for the LLM |
+| `llm_model` | "openai/gpt-4o-mini" | OpenRouter model to use |
+| `max_context_messages` | 12 | Number of recent messages to include in LLM context |
+| `auto_summarize_enabled` | true | Enable/disable automatic summarization |
+| `summarize_threshold` | 18 | Number of messages that triggers summarization |
+| `summarize_batch_size` | 10 | Number of oldest messages to summarize at once |
+
+You can edit the config file directly or use Telegram commands to update some settings.
 

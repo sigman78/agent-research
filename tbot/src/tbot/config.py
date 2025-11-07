@@ -37,6 +37,11 @@ class BotConfig:
     llm_model: str = "openai/gpt-4o-mini"
     max_context_messages: int = 12
 
+    # Auto-summarization settings
+    auto_summarize_enabled: bool = True
+    summarize_threshold: int = 18
+    summarize_batch_size: int = 10
+
     def __post_init__(self) -> None:
         self.persona = self.persona.strip()
         self.system_prompt = self.system_prompt.strip()
@@ -51,6 +56,18 @@ class BotConfig:
             minimum=4,
             maximum=50,
             field_name="max_context_messages",
+        )
+        self.summarize_threshold = _ensure_int_in_range(
+            int(self.summarize_threshold),
+            minimum=10,
+            maximum=100,
+            field_name="summarize_threshold",
+        )
+        self.summarize_batch_size = _ensure_int_in_range(
+            int(self.summarize_batch_size),
+            minimum=5,
+            maximum=50,
+            field_name="summarize_batch_size",
         )
         if not self.llm_model:
             raise ValueError("llm_model must be a non-empty string.")
@@ -67,6 +84,9 @@ class BotConfig:
             "system_prompt": self.system_prompt,
             "llm_model": self.llm_model,
             "max_context_messages": self.max_context_messages,
+            "auto_summarize_enabled": self.auto_summarize_enabled,
+            "summarize_threshold": self.summarize_threshold,
+            "summarize_batch_size": self.summarize_batch_size,
         }
 
     def model_dump_json(self, indent: int | None = None) -> str:

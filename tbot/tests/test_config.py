@@ -39,3 +39,71 @@ def test_model_name_other_providers() -> None:
     config = BotConfig(llm_model="anthropic/claude-3-sonnet")
     assert config.llm_model == "anthropic/claude-3-sonnet"
 
+
+def test_summarization_config_defaults() -> None:
+    """Test default values for summarization settings."""
+    config = BotConfig()
+    assert config.auto_summarize_enabled is True
+    assert config.summarize_threshold == 18
+    assert config.summarize_batch_size == 10
+
+
+def test_summarization_config_custom_values() -> None:
+    """Test custom summarization settings."""
+    config = BotConfig(
+        auto_summarize_enabled=False,
+        summarize_threshold=25,
+        summarize_batch_size=15,
+    )
+    assert config.auto_summarize_enabled is False
+    assert config.summarize_threshold == 25
+    assert config.summarize_batch_size == 15
+
+
+def test_summarization_threshold_validation() -> None:
+    """Test that summarization threshold is validated."""
+    # Too low
+    try:
+        BotConfig(summarize_threshold=5)
+        assert False, "Should have raised ValueError"
+    except ValueError as e:
+        assert "summarize_threshold" in str(e)
+
+    # Too high
+    try:
+        BotConfig(summarize_threshold=150)
+        assert False, "Should have raised ValueError"
+    except ValueError as e:
+        assert "summarize_threshold" in str(e)
+
+
+def test_summarization_batch_size_validation() -> None:
+    """Test that batch size is validated."""
+    # Too low
+    try:
+        BotConfig(summarize_batch_size=2)
+        assert False, "Should have raised ValueError"
+    except ValueError as e:
+        assert "summarize_batch_size" in str(e)
+
+    # Too high
+    try:
+        BotConfig(summarize_batch_size=100)
+        assert False, "Should have raised ValueError"
+    except ValueError as e:
+        assert "summarize_batch_size" in str(e)
+
+
+def test_config_serialization_with_summarization() -> None:
+    """Test that summarization config is saved and loaded."""
+    config = BotConfig(
+        auto_summarize_enabled=False,
+        summarize_threshold=20,
+        summarize_batch_size=12,
+    )
+    dumped = config.model_dump()
+
+    assert dumped["auto_summarize_enabled"] is False
+    assert dumped["summarize_threshold"] == 20
+    assert dumped["summarize_batch_size"] == 12
+

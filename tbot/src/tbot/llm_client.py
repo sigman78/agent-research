@@ -141,3 +141,74 @@ class LLMClient:
             logger.error(f"Failed to generate reply: {e}")
             raise
 
+    async def generate_summary(
+        self,
+        messages: List[str],
+        persona: str,
+        model: str,
+    ) -> str:
+        """Generate a concise summary of conversation history.
+
+        Args:
+            messages: List of chat messages to summarize
+            persona: The bot's persona for context
+            model: LLM model to use for summarization
+
+        Returns:
+            Concise summary of the conversation
+
+        Raises:
+            OpenAIError: If the API call fails
+            ValueError: If the response is invalid or empty
+        """
+        if not messages:
+            raise ValueError("Cannot summarize empty message list")
+
+        # Create a specialized prompt for summarization
+        messages_text = "\n".join(messages)
+        system_prompt = (
+            "You are a helpful assistant that creates concise summaries of chat conversations. "
+            f"The bot's persona is: {persona}. "
+            "Summarize the key points, topics discussed, and important information from the conversation. "
+            "Focus on facts, decisions, and context that would be useful to remember in future conversations. "
+            "Keep the summary concise (2-4 sentences)."
+        )
+
+        summary_messages: List[dict[str, str]] = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": f"Please summarize the following conversation:\n\n{messages_text}",
+            },
+        ]
+
+        logger.debug(f"Generating summary for {len(messages)} messages")
+
+        def _call() -> str:
+            try:
+                response = self._client.chat.completions.create(
+                    model=model,
+                    messages=summary_messages,
+                    temperature=0.3,  # Lower temperature for more focused summaries
+                    max_tokens=256,  # Shorter response for summaries
+                )
+                content = response.choices[0].message.content
+                if content is None:
+                    raise ValueError("LLM returned empty summary")
+                return content.strip()
+            except OpenAIError as e:
+                error_msg = str(e)
+                logger.error(f"API error while generating summary with model '{model}': {error_msg}")
+                raise
+            except (IndexError, AttributeError) as e:
+                logger.error(f"Invalid response structure from LLM: {e}")
+                raise ValueError("Invalid response from LLM") from e
+
+        try:
+            summary = await asyncio.to_thread(_call)
+            logger.info(f"Successfully generated summary of length {len(summary)}")
+            return summary
+        except Exception as e:
+            logger.error(f"Failed to generate summary: {e}")
+            raise
+

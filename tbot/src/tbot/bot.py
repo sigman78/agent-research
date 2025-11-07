@@ -55,6 +55,73 @@ def _parse_argument(update: Update) -> str:
     return parts[1].strip()
 
 
+async def _maybe_auto_summarize(
+    *,
+    chat_id: int,
+    config: BotConfig,
+    memory_manager: MemoryManager,
+    llm_client: LLMClient,
+) -> None:
+    """Check if history should be summarized and perform summarization if needed.
+
+    Args:
+        chat_id: The chat to check
+        config: Bot configuration
+        memory_manager: Memory manager instance
+        llm_client: LLM client for generating summaries
+    """
+    # Check if auto-summarization is enabled
+    if not config.auto_summarize_enabled:
+        return
+
+    # Check if threshold is reached
+    if not memory_manager.should_summarize(chat_id, config.summarize_threshold):
+        return
+
+    logger.info(
+        f"Chat {chat_id} reached threshold ({config.summarize_threshold}), "
+        "triggering auto-summarization"
+    )
+
+    try:
+        # Get messages to summarize
+        messages_to_summarize, total_size = memory_manager.get_messages_for_summary(
+            chat_id, config.summarize_batch_size
+        )
+
+        if not messages_to_summarize:
+            logger.warning(f"No messages to summarize for chat {chat_id}")
+            return
+
+        logger.debug(
+            f"Summarizing {len(messages_to_summarize)} oldest messages "
+            f"(out of {total_size} total)"
+        )
+
+        # Generate summary using LLM
+        summary = await llm_client.generate_summary(
+            messages=messages_to_summarize,
+            persona=config.persona,
+            model=config.llm_model,
+        )
+
+        # Add summary to memories
+        memory_manager.add_memory(
+            chat_id, f"[Auto-summary]: {summary}"
+        )
+
+        # Clear the summarized messages from history
+        memory_manager.clear_summarized_messages(chat_id, len(messages_to_summarize))
+
+        logger.info(
+            f"Successfully summarized and stored {len(messages_to_summarize)} messages "
+            f"for chat {chat_id}. Summary: {summary[:100]}..."
+        )
+    except Exception as e:
+        # Log error but don't fail the whole conversation
+        logger.error(f"Failed to auto-summarize chat {chat_id}: {e}", exc_info=True)
+
+
 def create_application(
     token: str,
     *,
@@ -218,6 +285,14 @@ def create_application(
             await message.reply_text(reply)
             memory_manager.append_history(chat_id, f"Bot: {reply}")
             logger.info(f"Successfully replied to message in chat {chat_id}")
+
+            # Check if auto-summarization should be triggered
+            await _maybe_auto_summarize(
+                chat_id=chat_id,
+                config=config,
+                memory_manager=memory_manager,
+                llm_client=llm_client,
+            )
         except Exception as e:
             logger.error(f"Failed to generate reply for chat {chat_id}: {e}")
             error_message = (
