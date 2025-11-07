@@ -56,6 +56,7 @@ The bot stores its configuration in `~/.tbot-config.json` by default.
 - **Private chats**: The bot always responds to messages in private 1-on-1 conversations
 - **Group chats**: The bot uses the configured `response_frequency` to decide whether to respond
 - **Direct replies**: The bot always responds when you reply to one of its messages (in any chat type)
+- **Mentions**: The bot always responds when it's mentioned in a message (by @username or first name)
 
 ### Auto-summarization
 

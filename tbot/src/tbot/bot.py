@@ -290,9 +290,23 @@ def create_application(
         config = config_manager.config
         bot_user = context.bot if hasattr(context, "bot") else None
         replied_to_bot = False
+        mentioned_bot = False
+
         if message.reply_to_message and bot_user:
             replied_to = message.reply_to_message.from_user
             replied_to_bot = replied_to.id == bot_user.id if replied_to else False
+
+        # Check if the bot is mentioned in the message
+        if bot_user:
+            bot_username = bot_user.username
+            bot_first_name = getattr(bot_user, "first_name", "")
+
+            # Check for @username mention or first name mention
+            if (bot_username and f"@{bot_username}" in text) or (
+                bot_first_name and bot_first_name in text
+            ):
+                mentioned_bot = True
+                logger.debug(f"Bot was mentioned in chat {chat_id}")
 
         # Detect if this is a private 1-on-1 chat
         is_private_chat = update.effective_chat.type == "private"
@@ -346,6 +360,7 @@ def create_application(
             response_frequency=config.response_frequency,
             replied_to_bot=replied_to_bot,
             is_private_chat=is_private_chat,
+            mentioned_bot=mentioned_bot,
         )
 
         if not should_reply:
