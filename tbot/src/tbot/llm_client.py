@@ -1,8 +1,12 @@
 """OpenAI-compatible client for generating replies via OpenRouter."""
+
 from __future__ import annotations
 
 import asyncio
+import datetime
+import json
 import logging
+from pathlib import Path
 from typing import Iterable, List, Optional
 
 from openai import OpenAI, OpenAIError
@@ -18,6 +22,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_TEMPERATURE = 0.8
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+
+# Request logging for debug purposes (temporary)
+ENABLE_REQUEST_LOGGING = True
+REQUEST_LOG_FILE = Path("llm_requests.log")
 
 
 class LLMClient:
@@ -44,6 +52,30 @@ class LLMClient:
             client: OpenAI client instance
         """
         self._client = client
+
+    def _log_request(self, endpoint: str, request_data: dict) -> None:
+        """Log raw LLM request for debug purposes (temporary solution).
+
+        Args:
+            endpoint: API endpoint being called
+            request_data: Request payload to log
+        """
+        if not ENABLE_REQUEST_LOGGING:
+            return
+
+        try:
+            log_entry = {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "endpoint": endpoint,
+                "request": request_data,
+            }
+
+            with REQUEST_LOG_FILE.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+        except Exception as e:
+            # Never let logging errors break the main functionality
+            logger.warning(f"Failed to log request: {e}")
 
     async def generate_reply(
         self,
@@ -101,6 +133,15 @@ class LLMClient:
             f"Generating reply with model {config.llm_model}, "
             f"{len(messages)} messages in context"
         )
+
+        # Log the request for debug purposes
+        request_data = {
+            "model": config.llm_model,
+            "messages": messages,
+            "temperature": DEFAULT_TEMPERATURE,
+            "max_tokens": DEFAULT_MAX_TOKENS,
+        }
+        self._log_request("chat.completions.create", request_data)
 
         def _call() -> str:
             try:
@@ -181,6 +222,15 @@ class LLMClient:
 
         logger.debug(f"Generating summary for {len(messages)} messages")
 
+        # Log the request for debug purposes
+        request_data = {
+            "model": model,
+            "messages": summary_messages,
+            "temperature": 0.3,
+            "max_tokens": 256,
+        }
+        self._log_request("chat.completions.create", request_data)
+
         def _call() -> str:
             try:
                 response = self._client.chat.completions.create(
@@ -251,6 +301,15 @@ class LLMClient:
         ]
 
         logger.debug(f"Requesting reaction suggestion for message: {message[:50]}...")
+
+        # Log the request for debug purposes
+        request_data = {
+            "model": model,
+            "messages": reaction_messages,
+            "temperature": 0.5,
+            "max_tokens": 10,
+        }
+        self._log_request("chat.completions.create", request_data)
 
         def _call() -> str | None:
             try:
