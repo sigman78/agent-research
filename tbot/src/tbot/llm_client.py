@@ -3,14 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Iterable, List, Optional, cast
+from typing import Iterable, List, Optional
 
-try:  # pragma: no cover - imported lazily for tests
-    from openai import OpenAI, OpenAIError
-    from openai.types.chat import ChatCompletionMessageParam
-except Exception:  # pragma: no cover - fallback when package missing
-    OpenAI = None  # type: ignore
-    OpenAIError = Exception  # type: ignore
+from openai import OpenAI, OpenAIError
+from openai.types.chat import ChatCompletionMessageParam
 
 from .config import BotConfig
 from .const import TG_REACTIONS as COMMON_REACTIONS
@@ -27,37 +23,27 @@ DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 class LLMClient:
     """Wrapper around the OpenAI client to talk to OpenRouter."""
 
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = DEFAULT_BASE_URL,
-        client: Optional[OpenAI] = None,
-    ) -> None:
-        """Initialize the LLM client.
+    @classmethod
+    def fromParams(
+        cls, api_key: Optional[str] = None, base_url: Optional[str] = DEFAULT_BASE_URL
+    ) -> "LLMClient":
+        """Create an LLM client from parameters.
 
         Args:
             api_key: OpenRouter-compatible API key
             base_url: Base URL for the API (defaults to OpenRouter)
-            client: Optional pre-configured OpenAI client for testing
 
-        Raises:
-            RuntimeError: If OpenAI package is not installed
-            ValueError: If api_key is not provided when client is None
+        Returns:
+            An initialized LLM client.
         """
-        if client is not None:
-            self._client = client
-        else:
-            if OpenAI is None:  # pragma: no cover
-                raise RuntimeError(
-                    "openai package is not installed. "
-                    "Install it with: pip install openai"
-                )
-            if not api_key:
-                raise ValueError(
-                    "api_key must be provided when client is not specified"
-                )
-            self._client = OpenAI(api_key=api_key, base_url=base_url)
-            logger.info(f"Initialized LLM client with base URL: {base_url}")
+        return LLMClient(client=OpenAI(api_key=api_key, base_url=base_url))
+
+    def __init__(self, client: OpenAI) -> None:
+        """Initialize the LLM client.
+        Args:
+            client: OpenAI client instance
+        """
+        self._client = client
 
     async def generate_reply(
         self,

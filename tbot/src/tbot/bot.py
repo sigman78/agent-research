@@ -168,7 +168,7 @@ def create_application(
     config_manager = config_manager or ConfigManager()
     memory_manager = memory_manager or MemoryManager()
     resolved_api_key = api_key or os.getenv("API_KEY")
-    llm_client = llm_client or LLMClient(api_key=resolved_api_key)
+    llm_client = llm_client or LLMClient.fromParams(api_key=resolved_api_key)
 
     application = Application.builder().token(token).build()
 
@@ -528,12 +528,12 @@ async def run_polling(token: str, *, api_key: str | None = None) -> None:
     application = create_application(token, api_key=api_key)
     async with application:
         await application.start()
-        await application.updater.start_polling()
+        # await application.updater.start_polling()
         try:
             while True:
                 await asyncio.sleep(3600)
         except asyncio.CancelledError:
             pass
         finally:
-            await application.updater.stop()
+            # await application.updater.stop()
             await application.stop()

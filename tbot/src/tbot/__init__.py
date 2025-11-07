@@ -12,7 +12,6 @@ __all__ = [
     "ConfigManager",
     "MemoryManager",
     "LLMClient",
-    "create_application",
 ]
 
 
